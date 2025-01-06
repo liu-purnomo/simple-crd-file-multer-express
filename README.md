@@ -26,8 +26,8 @@ TOKEN_KEY=your_secret_token
 1. Clone the repository:
 
    ```bash
-   git clone https://github.com/your-repo/media-upload-service.git
-   cd media-upload-service
+   git clone https://github.com/liu-purnomo/simple-crd-file-multer-express.git
+   cd simple-crd-file-multer-express
    ```
 
 2. Install dependencies:
