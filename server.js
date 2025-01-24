@@ -36,7 +36,14 @@ const storage = multer.diskStorage({
       namespace: UUID.namespace.url,
       name: timeStamp,
     });
-    cb(null, uuid + ext);
+
+    // Replace spaces in fieldname with '-' and ensure no prefix is empty
+    const sanitizedPrefix = file.fieldname
+      ? file.fieldname.replace(/\s+/g, '-')
+      : '';
+    const prefix = sanitizedPrefix ? `${sanitizedPrefix}-` : ''; // Add '-' if prefix exists
+
+    cb(null, prefix + uuid + ext); // Format nama file
   },
 });
 
@@ -78,6 +85,67 @@ app.post('/', upload.single('file'), (req, res) => {
     res.json({ link: fileUrl });
   } catch (error) {
     res.status(500).json({ message: 'Server error while uploading file' });
+  }
+});
+
+// Route for uploading multiple files
+app.post('/files', upload.array('files', 10), (req, res) => {
+  const authHeader = req.headers['authorization'];
+  if (!authHeader || authHeader !== `Bearer ${tokenKey}`) {
+    return res.status(401).json({ message: 'Unauthorized access' });
+  }
+
+  if (!req.files || req.files.length === 0) {
+    return res.status(400).json({ message: 'No files uploaded' });
+  }
+
+  try {
+    const fileUrls = req.files.map(
+      (file) => `${baseUrl}/upload/${file.filename}`
+    );
+    res.json({ links: fileUrls });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error while uploading files' });
+  }
+});
+
+app.post('/multiple-fields', upload.any(), (req, res) => {
+  const authHeader = req.headers['authorization'];
+  if (!authHeader || authHeader !== `Bearer ${tokenKey}`) {
+    return res.status(401).json({ message: 'Unauthorized access' });
+  }
+
+  if (!req.files || req.files.length === 0) {
+    return res.status(400).json({ message: 'No files uploaded' });
+  }
+
+  try {
+    const uploadedFiles = {};
+
+    req.files.forEach((file) => {
+      // Extract prefix from the filename (e.g., po_uuid.ext -> po)
+      const prefix = file.filename.split('-')[0] || '';
+      const fileUrl = `${baseUrl}/upload/${file.filename}`; // File URL
+
+      if (!uploadedFiles[prefix]) {
+        uploadedFiles[prefix] = [];
+      }
+
+      // Add file name and URL to the response
+      uploadedFiles[prefix].push({
+        document: prefix,
+        originalName: file.originalname,
+        fileName: file.filename,
+        link: fileUrl,
+      });
+    });
+
+    res.json({
+      message: 'Files uploaded successfully',
+      files: uploadedFiles,
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error while uploading files' });
   }
 });
 
@@ -126,6 +194,56 @@ app.delete('/:fileName', (req, res) => {
   } else {
     res.status(404).json({ status: 'error', message: 'File not found' });
   }
+});
+
+// Route for deleting multiple files
+app.delete('/multiple-files', (req, res) => {
+  const authHeader = req.headers['authorization'];
+  if (!authHeader || authHeader !== `Bearer ${tokenKey}`) {
+    return res.status(401).json({ message: 'Unauthorized access' });
+  }
+
+  const { files } = req.body; // Expecting { files: ['fileName1', 'fileName2', ...] }
+  if (!files || !Array.isArray(files) || files.length === 0) {
+    return res.status(400).json({
+      status: 'error',
+      message: 'Files array is missing or invalid',
+    });
+  }
+
+  const results = [];
+
+  files.forEach((fileName) => {
+    const filePath = path.join(mediaDirectory, fileName);
+
+    if (fs.existsSync(filePath)) {
+      try {
+        fs.unlinkSync(filePath);
+        results.push({
+          fileName,
+          status: 'success',
+          message: 'File deleted successfully',
+        });
+      } catch (err) {
+        results.push({
+          fileName,
+          status: 'error',
+          message: err.message,
+        });
+      }
+    } else {
+      results.push({
+        fileName,
+        status: 'error',
+        message: 'File not found',
+      });
+    }
+  });
+
+  res.json({
+    message: 'File deletion process completed',
+    results,
+  });
 });
 
 app.listen(port, () => {
