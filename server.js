@@ -5,6 +5,7 @@ const path = require('path');
 const cors = require('cors');
 const fs = require('fs');
 const UUID = require('uuid-1345');
+const checkAuth = require('./checkAuth');
 
 const app = express();
 const port = process.env.PORT || 3002;
@@ -70,17 +71,11 @@ app.get('/', (req, res) => {
 });
 
 // Route for file upload with error handling
-app.post('/', upload.single('file'), (req, res) => {
-  const authHeader = req.headers['authorization'];
-  if (!authHeader || authHeader !== `Bearer ${tokenKey}`) {
-    return res.status(401).json({ message: 'Unauthorized access' });
-  }
-
-  if (!req.file) {
-    return res.status(400).json({ message: 'No file uploaded' });
-  }
-
+app.post('/', checkAuth, upload.single('file'), (req, res) => {
   try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file uploaded' });
+    }
     const fileUrl = `${baseUrl}/upload/${req.file.filename}`;
     res.json({ link: fileUrl });
   } catch (error) {
@@ -89,17 +84,11 @@ app.post('/', upload.single('file'), (req, res) => {
 });
 
 // Route for uploading multiple files
-app.post('/files', upload.array('files', 10), (req, res) => {
-  const authHeader = req.headers['authorization'];
-  if (!authHeader || authHeader !== `Bearer ${tokenKey}`) {
-    return res.status(401).json({ message: 'Unauthorized access' });
-  }
-
-  if (!req.files || req.files.length === 0) {
-    return res.status(400).json({ message: 'No files uploaded' });
-  }
-
+app.post('/files', checkAuth, upload.array('files', 10), (req, res) => {
   try {
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ message: 'No files uploaded' });
+    }
     const fileUrls = req.files.map(
       (file) => `${baseUrl}/upload/${file.filename}`
     );
@@ -109,17 +98,11 @@ app.post('/files', upload.array('files', 10), (req, res) => {
   }
 });
 
-app.post('/multiple-fields', upload.any(), (req, res) => {
-  const authHeader = req.headers['authorization'];
-  if (!authHeader || authHeader !== `Bearer ${tokenKey}`) {
-    return res.status(401).json({ message: 'Unauthorized access' });
-  }
-
-  if (!req.files || req.files.length === 0) {
-    return res.status(400).json({ message: 'No files uploaded' });
-  }
-
+app.post('/multiple-fields', checkAuth, upload.any(), (req, res) => {
   try {
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ message: 'No files uploaded' });
+    }
     const uploadedFiles = {};
 
     req.files.forEach((file) => {
@@ -162,12 +145,7 @@ app.use((err, req, res, next) => {
 });
 
 // Route for file deletion
-app.delete('/:fileName', (req, res) => {
-  const authHeader = req.headers['authorization'];
-  if (!authHeader || authHeader !== `Bearer ${tokenKey}`) {
-    return res.status(401).json({ message: 'Unauthorized access' });
-  }
-
+app.delete('/:fileName', checkAuth, (req, res) => {
   const { fileName } = req.params;
   if (!fileName) {
     return res.status(400).json({
@@ -177,7 +155,6 @@ app.delete('/:fileName', (req, res) => {
   }
 
   const filePath = path.join(mediaDirectory, fileName);
-
   if (fs.existsSync(filePath)) {
     fs.unlink(filePath, (err) => {
       if (err) {
@@ -197,12 +174,7 @@ app.delete('/:fileName', (req, res) => {
 });
 
 // Route for deleting multiple files
-app.delete('/multiple-files', (req, res) => {
-  const authHeader = req.headers['authorization'];
-  if (!authHeader || authHeader !== `Bearer ${tokenKey}`) {
-    return res.status(401).json({ message: 'Unauthorized access' });
-  }
-
+app.delete('/multiple-files', checkAuth, (req, res) => {
   const { files } = req.body; // Expecting { files: ['fileName1', 'fileName2', ...] }
   if (!files || !Array.isArray(files) || files.length === 0) {
     return res.status(400).json({
